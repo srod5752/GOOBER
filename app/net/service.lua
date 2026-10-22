@@ -250,7 +250,7 @@ function Service:sendClientPulse()
     name = self.name,
     role = self.role,
     capabilities = self.capabilities,
-    version = "0.2.0-network"
+    version = "0.3.0-interface"
   })
   local ok, err = transport.send(self.controllerId, message)
   if not ok then

@@ -1,6 +1,6 @@
 {
   "name": "GOOBER OS",
-  "version": "0.2.0-network",
+  "version": "0.3.0-interface",
   "protocol": 1,
   "files": [
     "startup.lua",
@@ -10,6 +10,9 @@
     "app/core/capabilities.lua",
     "app/net/protocol.lua",
     "app/net/transport.lua",
-    "app/net/service.lua"
+    "app/net/service.lua",
+    "app/ui/display.lua",
+    "app/ui/components.lua",
+    "app/ui/app.lua"
   ]
 }

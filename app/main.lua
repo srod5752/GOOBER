@@ -1,94 +1,63 @@
--- GOOBER network-status screen. Later phases add facility applications.
+-- GOOBER OS interface and network event loop.
 package.path = "/goober/app/?.lua;/goober/app/?/init.lua;" .. package.path
 
 local configModule = require("core.config")
 local capabilities = require("core.capabilities")
 local NetworkService = require("net.service")
+local Display = require("ui.display")
+local Components = require("ui.components")
+local Interface = require("ui.app")
+
 local config, configNotice = configModule.load()
+local display = Display.select(config)
+
+local function bootScreen(status, index)
+  local _, height = term.getSize()
+  Components.clear()
+  Components.centered(math.max(2, math.floor(height / 2) - 2), "GOOBER OS", colors.cyan)
+  Components.centered(math.max(3, math.floor(height / 2)), "GENERAL OPERATIONS & ONBOARD BASE ENVIRONMENT RESPONSE", colors.lightGray)
+  Components.centered(math.min(height - 1, math.floor(height / 2) + 2), "[" .. string.rep("=", index * 6) .. string.rep(" ", 18 - index * 6) .. "]", colors.green)
+  Components.centered(math.min(height, math.floor(height / 2) + 4), status, colors.white)
+end
+
+bootScreen("Loading configuration", 1)
 local detected = capabilities.detect()
+bootScreen("Checking display and peripherals", 2)
 local network = NetworkService.new(config, detected)
 network:start()
-
-local function color(name, fallback)
-  return colors[name] or fallback
-end
-
-local function writeLine(y, text, valueColor)
-  if y > detected.terminal.height then return end
-  local width = detected.terminal.width
-  if width < 1 then return end
-  text = tostring(text):sub(1, width)
-  term.setCursorPos(1, y)
-  term.setTextColor(valueColor or colors.white)
-  term.write(text)
-end
-
-term.setBackgroundColor(colors.black)
-term.clear()
-local function draw()
-  local state = network:status()
-  local compact = detected.terminal.width < 28 or detected.terminal.height < 10
-  local statusColor = (state.state == "connected" or state.state == "controller") and colors.green or colors.yellow
-  local rows
-  if compact then
-    rows = {
-      { "GOOBER OS 0.2", color("cyan", colors.white) },
-      { config.device.name .. " / " .. config.device.role, colors.white },
-      { "Network: " .. state.state, statusColor },
-      { state.detail, colors.lightGray },
-      { "Devices: " .. tostring(#state.devices), colors.white }
-    }
-  else
-    rows = {
-      { "GOOBER OS  |  NETWORK FOUNDATION 0.2", color("cyan", colors.white) },
-      { "General Operations & Onboard Base Environment Response", colors.gray },
-      { "", colors.white },
-      { "LOCAL DEVICE", colors.lightGray },
-      { "Name: " .. config.device.name, colors.white },
-      { "Role: " .. config.device.role .. " | Computer ID: " .. tostring(config.device.id), colors.white },
-      { "", colors.white },
-      { "NETWORK", colors.lightGray },
-      { "Status: " .. state.state, statusColor },
-      { "Controller ID: " .. tostring(state.controller_id or "not found"), colors.white },
-      { "Modems open: " .. tostring(state.modem_count), colors.white },
-      { state.detail, colors.lightGray },
-      { "Devices: " .. tostring(#state.devices), colors.white },
-      { "", colors.white },
-      { "CONNECTED / RECENT DEVICES", colors.lightGray }
-    }
-    for _, device in ipairs(state.devices) do
-      local deviceColor = device.status == "online" and colors.green or colors.yellow
-      table.insert(rows, {
-        string.format("%s | %s | ID %d | %s", device.name, device.role, device.id, device.status),
-        deviceColor
-      })
-    end
-    if configNotice then table.insert(rows, { "Config: " .. tostring(configNotice), colors.lightGray }) end
-  end
-
-  term.setBackgroundColor(colors.black)
-  term.clear()
-  for index, row in ipairs(rows) do writeLine(index, row[1], row[2]) end
-end
+bootScreen("Starting network services", 3)
+local app = Interface.new(config, network, detected, display, configNotice)
+app:draw()
 
 local timer = os.startTimer(1)
-draw()
 while true do
-  local event, parameter, message, messageProtocol = os.pullEvent()
-  if event == "timer" and parameter == timer then
+  local event, a, b, c = os.pullEvent()
+  if event == "timer" and a == timer then
     network:step()
-    draw()
+    app:draw()
     timer = os.startTimer(1)
   elseif event == "rednet_message" then
-    network:onRednetMessage(parameter, message, messageProtocol)
-    draw()
+    network:onRednetMessage(a, b, c)
+    app:draw()
+  elseif event == "mouse_click" then
+    app:handleClick(b, c, a)
+  elseif event == "monitor_touch" then
+    if not display.monitor_name or a == display.monitor_name then app:handleClick(b, c, 1) end
+  elseif event == "char" or event == "key" then
+    app:handleEvent(event, a)
   elseif event == "peripheral" or event == "peripheral_detach" then
+    display = Display.select(config)
     detected = capabilities.detect()
     network.capabilities = detected
     network:start()
-    draw()
+    app.display = display
+    app.detected = detected
+    app:draw()
   elseif event == "term_resize" or event == "monitor_resize" then
+    display = Display.select(config)
     detected = capabilities.detect()
-    draw()
+    app.display = display
+    app.detected = detected
+    app:draw()
   end
 end
