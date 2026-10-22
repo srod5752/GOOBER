@@ -1,6 +1,7 @@
 -- GOOBER dashboard, launcher, network diagnostics, and settings screens.
 local ui = require("ui.components")
 local configModule = require("core.config")
+local Music = require("music")
 
 local App = {}
 App.__index = App
@@ -23,7 +24,9 @@ function App.new(config, network, detected, display, configNotice)
     editingName = false,
     nameBuffer = config.device.name,
     notice = nil,
-    pendingRestart = false
+    pendingRestart = false,
+    music = Music.new(config, network),
+    musicInput = ""
   }, App)
 end
 
@@ -112,7 +115,7 @@ function App:drawApps(width, height)
     { "OVERVIEW", "Live facility status", "dashboard", true },
     { "NETWORK", "Device diagnostics", "network", true },
     { "SETTINGS", "Device preferences", "settings", true },
-    { "MUSIC", "Playback and queues", nil, false },
+    { "MUSIC", "Playback and queues", "music", true },
     { "ANNOUNCEMENTS", "Facility audio messages", nil, false },
     { "LOCKDOWN", "Emergency coordination", nil, false }
   }
@@ -131,6 +134,49 @@ function App:drawApps(width, height)
     ui.button(self.buttons, x + 2, y + 2, cardWidth - 4, label, function() if enabled then self.page = destination else self.notice = appName .. " is not available yet" end end, enabled)
   end
   if startY + math.ceil(#apps / cols) * 5 > height then ui.text(2, height, "Use a larger monitor for the full launcher.", ui.colors.muted) end
+end
+
+function App:drawMusic(width)
+  local _,height=term.getSize()
+  local m=self.music
+  ui.text(2,4,"FACILITY MUSIC",ui.colors.accent)
+  ui.panel(2,6,math.max(12,width-4),4,"NOW PLAYING")
+  ui.write(4,8,m.current and (m.current.name or "Unknown track") or "Nothing playing",ui.colors.text,ui.colors.panel_dark,width-8)
+  ui.text(4,9,"Status: "..m.status,ui.colors.muted)
+  ui.button(self.buttons,2,11,10,"PLAY",function() m:control("resume") end,true)
+  ui.button(self.buttons,13,11,10,"PAUSE",function() m:control("pause") end,true)
+  ui.button(self.buttons,24,11,10,"SKIP",function() m:control("skip") end,true)
+  ui.button(self.buttons,35,11,10,"STOP",function() m:control("stop") end,true)
+  ui.button(self.buttons,2,13,12,"VOL -",function() m:control("volume_down"); self:saveConfig() end,true)
+  ui.button(self.buttons,15,13,12,"VOL +",function() m:control("volume_up"); self:saveConfig() end,true)
+  ui.button(self.buttons,28,13,18,"LOOP "..self.config.music.loop,function() m:control("loop"); self:saveConfig() end,true)
+  ui.text(2,15,"Queue: "..#m.queue.." tracks",ui.colors.text)
+  ui.text(2,16,"Search: click below, type query, press Enter",ui.colors.muted)
+  ui.panel(2,17,math.max(12,width-4),2,"SEARCH MUSIC")
+  ui.write(4,18,self.musicInput.."_",ui.colors.text,ui.colors.panel_dark,width-8)
+  ui.button(self.buttons,2,20,16,"SEARCH",function() m:search(self.musicInput) end,true)
+  ui.button(self.buttons,19,20,20,"SAVE RESULTS",function()
+    local ok,err=m:savePlaylist(m.query,m.results)
+    self.notice=ok and "Playlist saved: "..m.query or tostring(err)
+  end,#m.results>0)
+  if m.error then ui.text(40,20,m.error,ui.colors.warn,width-40) end
+  for i=1,math.min(#m.results,math.max(0,height-22)) do
+    local t=m.results[i]
+    ui.button(self.buttons,2,21+i,math.max(12,width-4),tostring(t.name or t.title or "Result "..i),function() m:enqueue(t,not m.current) end,true)
+  end
+  local savedNames={}
+  for name in pairs(m.saved) do table.insert(savedNames,name) end
+  table.sort(savedNames)
+  if #savedNames>0 then
+    local name=savedNames[1]
+    local tracks=m.saved[name]
+    local y=math.max(22,height-1)
+    ui.button(self.buttons,2,y,math.max(12,width-4),"PLAY SAVED: "..name,function()
+      if type(tracks)=="table" then
+        for i,track in ipairs(tracks) do m:enqueue(track,i==1 and not m.current) end
+      end
+    end,true)
+  end
 end
 
 function App:drawNetwork(width, height)
@@ -229,7 +275,8 @@ function App:draw()
   if self.page == "dashboard" then self:drawDashboard(width, height)
   elseif self.page == "apps" then self:drawApps(width, height)
   elseif self.page == "network" then self:drawNetwork(width, height)
-  elseif self.page == "settings" then self:drawSettings(width, height) end
+  elseif self.page == "settings" then self:drawSettings(width, height)
+  elseif self.page == "music" then self:drawMusic(width) end
   if self.notice and self.page ~= "settings" and height > 2 then ui.text(2, height - 1, self.notice, ui.colors.warn, width - 3) end
   ui.fill(1, height, width, 1, colors.gray)
   ui.write(2, height, self.display.monitor and ("MONITOR " .. tostring(self.display.monitor_name)) or "LOCAL TERMINAL", colors.lightGray, colors.gray)
@@ -246,7 +293,22 @@ function App:handleClick(x, y, button)
   end
 end
 
-function App:handleEvent(event, a)
+function App:handleEvent(event, a, x, y)
+  if self.page == "music" and self.editingMusic then
+    if event == "char" and #self.musicInput < 100 then self.musicInput=self.musicInput..a
+    elseif event == "key" then
+      if a==keys.backspace then self.musicInput=self.musicInput:sub(1,-2)
+      elseif a==keys.enter then self.music:search(self.musicInput)
+      elseif a==keys.escape then self.editingMusic=false end
+    end
+    self:draw()
+    return
+  end
+  if self.page == "music" and event == "mouse_click" then
+    if a==1 and y and y>=17 and y<=18 then self.editingMusic=true end
+    self:draw()
+    return
+  end
   if not self.editingName then return end
   if event == "char" and #self.nameBuffer < 32 then self.nameBuffer = self.nameBuffer .. a
   elseif event == "key" then

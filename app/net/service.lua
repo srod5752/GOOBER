@@ -39,6 +39,7 @@ function Service.new(config, capabilities)
   self.sequence = 0
   self.sessionId = createSessionId()
   self.devices = {}
+  self.musicState = { current = nil, queue = {}, playing = false, volume = config.music.volume, loop = config.music.loop }
   self.snapshot = {}
   self.lastRegistration = -100000
   self.lastHeartbeat = -100000
@@ -158,6 +159,48 @@ function Service:handleController(sender, message)
     else
       self:registerDevice(sender, message.payload)
     end
+  elseif message.kind == "music_command" then
+    if not self.devices[sender] then return end
+    local p=message.payload
+    if p.action=="enqueue" and type(p.track)=="table" then table.insert(self.musicState.queue,p.track)
+    elseif p.action=="play" and type(p.track)=="table" then self.musicState.current=p.track; self.musicState.playing=true
+    elseif p.action=="skip" then self.musicState.current=table.remove(self.musicState.queue,1); self.musicState.playing=self.musicState.current~=nil
+    elseif p.action=="stop" then self.musicState.current=nil; self.musicState.playing=false
+    elseif p.action=="pause" then self.musicState.playing=false
+    elseif p.action=="resume" then self.musicState.playing=self.musicState.current~=nil
+    elseif p.action=="volume" then self.musicState.volume=math.max(0,math.min(3,tonumber(p.value) or self.musicState.volume))
+    elseif p.action=="loop" and (p.value=="off" or p.value=="queue" or p.value=="song") then self.musicState.loop=p.value end
+    self:broadcastMusic()
+  end
+end
+
+function Service:broadcastMusic()
+  for id,entry in pairs(self.devices) do
+    if id~=self.id then
+      transport.send(id,self:nextMessage("music_state",self.musicState))
+    end
+  end
+end
+
+function Service:broadcastAudio(trackId, sequence, data)
+  if self.role~="controller" then return false end
+  return transport.broadcast(self:nextMessage("audio_chunk",{track_id=tostring(trackId),sequence=sequence,data=data}))
+end
+
+function Service:sendMusic(payload)
+  if self.role=="controller" then
+    local p=payload
+    if p.action=="enqueue" and type(p.track)=="table" then table.insert(self.musicState.queue,p.track)
+    elseif p.action=="play" and type(p.track)=="table" then self.musicState.current=p.track; self.musicState.playing=true
+    elseif p.action=="skip" then self.musicState.current=table.remove(self.musicState.queue,1); self.musicState.playing=self.musicState.current~=nil
+    elseif p.action=="stop" then self.musicState.current=nil; self.musicState.playing=false
+    elseif p.action=="pause" then self.musicState.playing=false
+    elseif p.action=="resume" then self.musicState.playing=self.musicState.current~=nil
+    elseif p.action=="volume" then self.musicState.volume=math.max(0,math.min(3,tonumber(p.value) or self.musicState.volume))
+    elseif p.action=="loop" then self.musicState.loop=p.value end
+    self:broadcastMusic()
+  elseif self.controllerId then
+    transport.send(self.controllerId,self:nextMessage("music_command",payload))
   end
 end
 
@@ -182,6 +225,8 @@ function Service:handleClient(sender, message)
     self.lastControllerMessage = self.tick
     self.state = "connected"
     self.detail = "Shared status received"
+  elseif message.kind == "music_state" then
+    self.musicState=message.payload
   end
 end
 
@@ -250,7 +295,7 @@ function Service:sendClientPulse()
     name = self.name,
     role = self.role,
     capabilities = self.capabilities,
-    version = "0.3.0-interface"
+    version = "0.4.0-music"
   })
   local ok, err = transport.send(self.controllerId, message)
   if not ok then

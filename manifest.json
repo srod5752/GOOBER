@@ -1,6 +1,6 @@
 {
   "name": "GOOBER OS",
-  "version": "0.3.0-interface",
+  "version": "0.4.0-music",
   "protocol": 1,
   "files": [
     "startup.lua",
@@ -11,6 +11,7 @@
     "app/net/protocol.lua",
     "app/net/transport.lua",
     "app/net/service.lua",
+    "app/music.lua",
     "app/ui/display.lua",
     "app/ui/components.lua",
     "app/ui/app.lua"

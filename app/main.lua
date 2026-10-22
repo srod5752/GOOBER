@@ -37,13 +37,24 @@ while true do
   local event, a, b, c = os.pullEvent()
   if event == "timer" and a == timer then
     network:step()
+    if network.musicState then app.music:applyRemote(network.musicState) end
+    app.music:step()
     app:draw()
     timer = os.startTimer(1)
   elseif event == "rednet_message" then
     network:onRednetMessage(a, b, c)
+    if network.musicState then app.music:applyRemote(network.musicState) end
+    if network.role=="audio" and type(b)=="table" and b.kind=="audio_chunk" and a==network.controllerId then
+      app.music:onAudioChunk(b.payload)
+      app.music:playReceived()
+    end
     app:draw()
+  elseif event == "speaker_audio_empty" then
+    app.music:onAudioEmpty()
+    app.music:playReceived()
   elseif event == "mouse_click" then
     app:handleClick(b, c, a)
+    app:handleEvent(event, a, b, c)
   elseif event == "monitor_touch" then
     if not display.monitor_name or a == display.monitor_name then app:handleClick(b, c, 1) end
   elseif event == "char" or event == "key" then
