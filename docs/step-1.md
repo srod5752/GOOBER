@@ -1,6 +1,6 @@
 # GOOBER OS — Step 1 Foundation
 
-This repository currently contains the startup/install foundation. It is not yet the distributed operating system: controller networking and applications are planned for Step 2 onward.
+This document covers the startup/install foundation from Step 1. Step 2 networking and its in-game verification are in [step-2.md](step-2.md).
 
 ## Repository publishing
 
@@ -35,4 +35,4 @@ The manifest and downloaded files come from the same configured HTTPS repository
 
 ## Step 1 scope
 
-This version saves a device name and primary role (`controller`, `terminal`, or `audio`), detects local display/peripheral/API capabilities, and starts automatically. Shared controller discovery, heartbeats, remote status, and user applications are not implemented yet. A terminal should therefore not be treated as connected to the facility until Step 2 is complete.
+Step 1 saves a device name and primary role (`controller`, `terminal`, or `audio`), detects local display/peripheral/API capabilities, and starts automatically. Rednet discovery, heartbeats, and remote status are added in Step 2. User applications are still planned for later steps.

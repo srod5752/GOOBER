@@ -91,7 +91,7 @@ local function chooseRole()
 end
 
 term.setTextColor(colors.cyan)
-print("GOOBER OS installer - foundation 0.1.0")
+print("GOOBER OS installer - network 0.2.0")
 term.setTextColor(colors.white)
 if not http then
   say("HTTP API is unavailable. Check the CC:Tweaked installation.", colors.red)
