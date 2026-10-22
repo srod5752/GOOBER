@@ -57,11 +57,10 @@ function App:nav()
   end
   local x = 2
   for _, item in ipairs(nav) do
-    local label = "[" .. item[1] .. "]"
-    local color = self.page == item[2] and ui.colors.accent or ui.colors.text
-    ui.write(x, 2, label, color, ui.colors.background)
-    table.insert(self.buttons, { x = x, y = 2, width = #label, height = 1, action = function() self.page = item[2] end, enabled = true })
-    x = x + #label + 2
+    local label, page = item[1], item[2]
+    local buttonWidth = #label + 2
+    ui.button(self.buttons, x, 2, buttonWidth, label, function() self.page = page end, true, self.page == page)
+    x = x + buttonWidth + 1
   end
 end
 
@@ -69,7 +68,8 @@ function App:drawDashboard(width, height)
   ui.text(2, 4, "FACILITY OVERVIEW", ui.colors.accent)
   local devices = self.network:status().devices
   local cached = self.network.role ~= "controller" and self.network.state ~= "connected"
-  local columns = width >= 55 and 2 or 1
+  local columns = width >= 38 and 2 or 1
+  local cardHeight = columns == 1 and 3 or 4
   local cellWidth = math.floor((width - (columns + 1) * 2) / columns)
   local rowY = 6
   local cards = {
@@ -82,13 +82,18 @@ function App:drawDashboard(width, height)
     local col = (index - 1) % columns
     local row = math.floor((index - 1) / columns)
     local x = 2 + col * (cellWidth + 2)
-    local y = rowY + row * 4
-    ui.panel(x, y, cellWidth, 4, card[1])
+    local y = rowY + row * cardHeight
+    ui.panel(x, y, cellWidth, cardHeight, card[1])
     ui.write(x + 2, y + 1, card[2], card[4], ui.colors.panel_dark, cellWidth - 4)
-    ui.write(x + 2, y + 2, card[3], ui.colors.muted, ui.colors.panel_dark, cellWidth - 4)
+    if columns == 1 then
+      ui.write(x + 2, y + 2, card[3], ui.colors.muted, ui.colors.panel_dark, cellWidth - 4)
+    else
+      ui.write(x + 2, y + 2, card[3], ui.colors.muted, ui.colors.panel_dark, cellWidth - 4)
+      ui.fill(x + 2, y + 3, cellWidth - 2, 1, card[4])
+    end
   end
-  local listY = rowY + 8
-  if listY < height then
+  local listY = rowY + math.ceil(#cards / columns) * cardHeight + 1
+  if listY < height - 1 then
     ui.text(2, listY, "RECENT DEVICE STATUS", ui.colors.accent)
     local visible = math.max(0, height - listY - 2)
     for i = 1, math.min(#devices, visible) do
@@ -122,7 +127,8 @@ function App:drawApps(width, height)
     ui.panel(x, y, cardWidth, 4, app[1])
     ui.write(x + 2, y + 1, app[2], ui.colors.muted, ui.colors.panel_dark, cardWidth - 4)
     local label = app[4] and "OPEN" or "PHASE 4+"
-    ui.button(self.buttons, x + 2, y + 2, cardWidth - 4, label, function() if app[4] then self.page = app[3] else self.notice = app[1] .. " is not available yet" end end, app[4])
+    local enabled, destination, appName = app[4], app[3], app[1]
+    ui.button(self.buttons, x + 2, y + 2, cardWidth - 4, label, function() if enabled then self.page = destination else self.notice = appName .. " is not available yet" end end, enabled)
   end
   if startY + math.ceil(#apps / cols) * 5 > height then ui.text(2, height, "Use a larger monitor for the full launcher.", ui.colors.muted) end
 end
@@ -136,7 +142,8 @@ function App:drawNetwork(width, height)
   local cached = self.network.role ~= "controller" and self.network.state ~= "connected"
   ui.text(2, 9, "Device data: " .. (cached and "CACHED / MAY BE STALE" or "LIVE"), cached and ui.colors.warn or ui.colors.good)
   ui.text(2, 10, "Detail: " .. self.network.detail, ui.colors.muted, width - 3)
-  ui.text(2, 12, "DEVICE  |  ROLE  |  STATUS  |  LAST SEEN  |  HARDWARE", ui.colors.accent)
+  ui.fill(1, 12, width, 1, colors.blue)
+  ui.write(2, 12, "DEVICE          ROLE      STATUS   SEEN      MODEM SPEAKER", colors.white, colors.blue, width - 3)
   local devices = self.network:status().devices
   for i = 1, math.min(#devices, height - 13) do
     local d = devices[i]
@@ -164,11 +171,12 @@ function App:drawSettings(width, height)
     { "Loop mode", self.config.music.loop, "loop" }
   }
   for i, row in ipairs(rows) do
+    local setting = row[3]
     local y = 5 + (i - 1) * 2
     ui.panel(2, y, math.max(12, width - 4), 2, row[1])
     ui.write(4, y + 1, row[2], ui.colors.text)
     local label = row[3] == "name" and "EDIT" or row[3] == "role" and "CHANGE" or "CYCLE"
-    ui.button(self.buttons, math.max(4, width - 15), y + 1, 13, label, function() self:changeSetting(row[3]) end, true)
+    ui.button(self.buttons, math.max(4, width - 15), y + 1, 13, label, function() self:changeSetting(setting) end, true)
   end
   if self.pendingRestart and height >= 17 then ui.text(2, height - 3, "Role saved. Reboot to apply it.", ui.colors.warn) end
   if self.notice and height >= 18 then ui.text(2, height - 2, self.notice, ui.colors.muted, width - 3) end
@@ -214,7 +222,9 @@ function App:draw()
   ui.write(2, 1, "GOOBER OS", colors.cyan, colors.gray)
   local healthy = self.network.state == "connected" or self.network.state == "controller"
   local networkLabel = self.network.state:upper()
-  ui.write(math.max(1, width - #networkLabel - 1), 1, networkLabel, healthy and ui.colors.good or ui.colors.warn, colors.gray)
+  local badgeX = math.max(1, width - #networkLabel - 2)
+  ui.fill(badgeX, 1, #networkLabel + 2, 1, healthy and colors.green or colors.red)
+  ui.write(badgeX + 1, 1, networkLabel, colors.black, healthy and colors.green or colors.red)
   self:nav()
   if self.page == "dashboard" then self:drawDashboard(width, height)
   elseif self.page == "apps" then self:drawApps(width, height)

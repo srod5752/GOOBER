@@ -45,26 +45,24 @@ function M.fill(x, y, width, height, bg)
 end
 
 function M.panel(x, y, width, height, title)
-  if width < 2 or height < 2 then return end
-  local c = M.colors.border
-  put(x, y, "+" .. string.rep("-", width - 2) .. "+", c, M.colors.background, width)
-  for line = y + 1, y + height - 2 do
-    put(x, line, "|", c, M.colors.background)
-    put(x + width - 1, line, "|", c, M.colors.background)
-    put(x + 1, line, string.rep(" ", width - 2), M.colors.text, M.colors.panel_dark, width - 2)
-  end
-  put(x, y + height - 1, "+" .. string.rep("-", width - 2) .. "+", c, M.colors.background, width)
-  if title and #title > 0 and width > #title + 4 then
-    put(x + 2, y, " " .. title .. " ", M.colors.accent, M.colors.background, width - 4)
+  if width < 1 or height < 1 then return end
+  M.fill(x, y, width, height, M.colors.panel_dark)
+  M.fill(x, y, math.min(2, width), height, M.colors.accent)
+  if title and #title > 0 and width > 4 then
+    M.fill(x + 2, y, width - 2, 1, colors.blue)
+    put(x + 3, y, title:upper(), colors.white, colors.blue, width - 4)
   end
 end
 
-function M.button(buttons, x, y, width, label, action, enabled)
-  local bg = enabled == false and colors.gray or colors.cyan
-  local fg = enabled == false and colors.lightGray or colors.black
-  local content = "[" .. tostring(label) .. "]"
-  put(x, y, content, fg, bg, width)
-  table.insert(buttons, { x = x, y = y, width = math.min(width, #content), height = 1, action = action, enabled = enabled ~= false })
+function M.button(buttons, x, y, width, label, action, enabled, selected)
+  if width < 1 then return end
+  local bg = enabled == false and colors.gray or selected and colors.cyan or colors.blue
+  local fg = enabled == false and colors.lightGray or selected and colors.black or colors.white
+  M.fill(x, y, width, 1, bg)
+  local text = tostring(label)
+  local labelX = x + math.max(0, math.floor((width - #text) / 2))
+  put(labelX, y, text, fg, bg, width - (labelX - x))
+  table.insert(buttons, { x = x, y = y, width = width, height = 1, action = action, enabled = enabled ~= false })
 end
 
 function M.centered(y, value, color)

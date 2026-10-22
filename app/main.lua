@@ -12,11 +12,14 @@ local config, configNotice = configModule.load()
 local display = Display.select(config)
 
 local function bootScreen(status, index)
-  local _, height = term.getSize()
+  local width, height = term.getSize()
   Components.clear()
   Components.centered(math.max(2, math.floor(height / 2) - 2), "GOOBER OS", colors.cyan)
   Components.centered(math.max(3, math.floor(height / 2)), "GENERAL OPERATIONS & ONBOARD BASE ENVIRONMENT RESPONSE", colors.lightGray)
-  Components.centered(math.min(height - 1, math.floor(height / 2) + 2), "[" .. string.rep("=", index * 6) .. string.rep(" ", 18 - index * 6) .. "]", colors.green)
+  local barY = math.min(height - 1, math.floor(height / 2) + 2)
+  local barX = math.max(1, math.floor((width - 18) / 2) + 1)
+  Components.fill(barX, barY, 18, 1, colors.gray)
+  Components.fill(barX, barY, index * 6, 1, colors.green)
   Components.centered(math.min(height, math.floor(height / 2) + 4), status, colors.white)
 end
 

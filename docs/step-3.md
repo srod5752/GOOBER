@@ -1,6 +1,6 @@
 # GOOBER OS — Step 3 Interface
 
-Step 3 adds the startup sequence, responsive facility dashboard, application launcher, network diagnostics, and local device settings. The dashboard uses live controller or terminal state; a disconnected terminal labels its last device snapshot as cached. Music, announcements, and lockdown are shown as unavailable until their implementation phases.
+Step 3 adds the startup sequence, responsive facility dashboard, application launcher, network diagnostics, and local device settings. The interface uses solid color panels, visual status bars, and filled controls rather than text-drawn borders. The dashboard uses live controller or terminal state; a disconnected terminal labels its last device snapshot as cached. Music, announcements, and lockdown are shown as unavailable until their implementation phases.
 
 ## Publish and update
 
